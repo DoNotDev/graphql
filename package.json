@@ -1,6 +1,6 @@
 {
   "name": "@donotdev/graphql",
-  "version": "0.1.42",
+  "version": "0.1.44",
   "private": false,
   "type": "module",
   "license": "MIT",
@@ -27,8 +27,8 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@donotdev/core": "^0.1.42",
-    "@donotdev/functions": "^0.1.42",
+    "@donotdev/core": "^0.1.43",
+    "@donotdev/functions": "^0.1.43",
     "valibot": "^1.2.0"
   },
   "peerDependenciesMeta": {
