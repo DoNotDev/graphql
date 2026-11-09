@@ -12,7 +12,7 @@ import type { ICallableProvider } from '@donotdev/core';
 import { DoNotDevError } from '@donotdev/core';
 
 import { GraphQLCallableProvider } from '../client/callableProvider';
-import { GraphQLClient } from '../client/graphqlClient';
+import type { GraphQLClient } from '../client/graphqlClient';
 
 // =============================================================================
 // Mock GraphQLClient

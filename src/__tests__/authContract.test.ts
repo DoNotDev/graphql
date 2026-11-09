@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AuthProvider } from '@donotdev/core';
 
 import { GraphQLAuth } from '../client/auth';
-import { GraphQLClient } from '../client/graphqlClient';
+import type { GraphQLClient } from '../client/graphqlClient';
 
 // =============================================================================
 // Mock GraphQLClient
@@ -101,8 +101,7 @@ describe('GraphQLAuth — AuthProvider contract', () => {
     const p = new GraphQLAuth(clientWithToken);
     await p.initialize();
     expect(clientWithToken.query).toHaveBeenCalledWith(
-      expect.stringContaining('me'),
-      undefined
+      expect.stringContaining('me')
     );
   });
 

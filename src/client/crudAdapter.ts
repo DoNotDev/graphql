@@ -15,6 +15,8 @@
  * @author AMBROISE PARK Consulting
  */
 
+import * as v from 'valibot';
+
 import {
   BulkCollisionError,
   BulkRequestSchema,
@@ -34,7 +36,6 @@ import type {
   CrudOperationOptions,
   dndevSchema,
 } from '@donotdev/core';
-import * as v from 'valibot';
 
 import type { GraphQLClient } from './graphqlClient';
 

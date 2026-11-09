@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ICrudAdapter } from '@donotdev/core';
 
 import { GraphQLCrudAdapter } from '../client/crudAdapter';
-import { GraphQLClient } from '../client/graphqlClient';
+import type { GraphQLClient } from '../client/graphqlClient';
 
 // =============================================================================
 // Mock GraphQLClient
@@ -106,7 +106,9 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
       queryError: new Error('network error'),
     });
     const ad = new GraphQLCrudAdapter(c);
-    await expect(ad.get('users', 'u1')).rejects.toThrow('network error');
+    await expect(ad.get('users', 'u1')).rejects.toMatchObject({
+      details: expect.objectContaining({ originalMessage: 'network error' }),
+    });
   });
 
   it('get() throws when signal is already aborted', async () => {
@@ -134,9 +136,9 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
   it('add() throws when mutate rejects', async () => {
     const c = createMockClient({ mutateError: new Error('insert failed') });
     const ad = new GraphQLCrudAdapter(c);
-    await expect(ad.add('users', { name: 'X' })).rejects.toThrow(
-      'insert failed'
-    );
+    await expect(ad.add('users', { name: 'X' })).rejects.toMatchObject({
+      details: expect.objectContaining({ originalMessage: 'insert failed' }),
+    });
   });
 
   it('add() throws when mutation returns no id', async () => {
@@ -186,9 +188,9 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
   it('update() throws when mutate rejects', async () => {
     const c = createMockClient({ mutateError: new Error('update failed') });
     const ad = new GraphQLCrudAdapter(c);
-    await expect(ad.update('users', 'u1', { name: 'X' })).rejects.toThrow(
-      'update failed'
-    );
+    await expect(ad.update('users', 'u1', { name: 'X' })).rejects.toMatchObject({
+      details: expect.objectContaining({ originalMessage: 'update failed' }),
+    });
   });
 
   // ---- delete ----
@@ -205,7 +207,9 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
   it('delete() throws when mutate rejects', async () => {
     const c = createMockClient({ mutateError: new Error('delete failed') });
     const ad = new GraphQLCrudAdapter(c);
-    await expect(ad.delete('users', 'u1')).rejects.toThrow('delete failed');
+    await expect(ad.delete('users', 'u1')).rejects.toMatchObject({
+      details: expect.objectContaining({ originalMessage: 'delete failed' }),
+    });
   });
 
   // ---- query ----
@@ -268,7 +272,9 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
   it('query() throws when query rejects', async () => {
     const c = createMockClient({ queryError: new Error('query failed') });
     const ad = new GraphQLCrudAdapter(c);
-    await expect(ad.query('users', {})).rejects.toThrow('query failed');
+    await expect(ad.query('users', {})).rejects.toMatchObject({
+      details: expect.objectContaining({ originalMessage: 'query failed' }),
+    });
   });
 
   // ---- subscriptions not implemented ----
