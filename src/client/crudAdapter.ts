@@ -48,12 +48,20 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** A record returned by a query (the selection is built at runtime). */
+const RECORD_SCHEMA = v.record(v.string(), v.unknown());
+/** A record returned by a create mutation: it must carry a string id. */
+const CREATED_RECORD_SCHEMA = v.looseObject({ id: v.string() });
+
 /**
  * Derive GraphQL field selection from a valibot schema's entries.
  * Always includes `id`. Falls back to `id` only if schema is absent or has no entries.
  */
 function buildFieldSelection(schema?: dndevSchema<unknown>): string {
-  const entries = (schema as { entries?: Record<string, unknown> })?.entries;
+  const entries =
+    schema && 'entries' in schema && typeof schema.entries === 'object'
+      ? schema.entries
+      : undefined;
   if (!entries) return 'id';
   const fields = new Set(['id', ...Object.keys(entries)]);
   return Array.from(fields).join('\n            ');
@@ -77,7 +85,7 @@ function operatorToGqlFilter(
   operator: CrudOperator,
   value: unknown
 ): string | null {
-  switch (operator as CrudOperator) {
+  switch (operator) {
     case CRUD_OPERATORS.EQ:
       return `${field}: ${gqlValue(value)}`;
     case CRUD_OPERATORS.NEQ:
@@ -110,7 +118,7 @@ function buildFilterArgs(options: QueryOptions): string {
     for (const clause of options.where) {
       const fragment = operatorToGqlFilter(
         clause.field,
-        clause.operator as CrudOperator,
+        clause.operator,
         clause.value
       );
       if (fragment !== null) clauses.push(fragment);
@@ -189,7 +197,8 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
       const record = data[collection];
       if (record === null || record === undefined) return null;
       // Include document ID in result (mirrors FirestoreAdapter contract)
-      return { ...(record as Record<string, unknown>), id } as T;
+      // why: `T` is caller-asserted (ICrudAdapter); the record is shape-checked, not validated against `T`
+      return { ...v.parse(RECORD_SCHEMA, record), id } as T;
     } catch (error) {
       if (error instanceof DoNotDevError) throw error;
       // Treat "not found" errors as null
@@ -232,17 +241,18 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
 
       const result = await this.client.mutate<Record<string, unknown>>(
         mutation,
+        // why: add<T>'s `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
         { input: data as Record<string, unknown> }
       );
 
-      const record = result[`create${capitalize(collection)}`] as Record<
-        string,
-        unknown
-      >;
-
-      if (!record || typeof record.id !== 'string') {
+      const created = v.safeParse(
+        CREATED_RECORD_SCHEMA,
+        result[`create${capitalize(collection)}`]
+      );
+      if (!created.success) {
         throw new Error('Create mutation returned no id');
       }
+      const record = created.output;
 
       return { id: record.id, data: record };
     } catch (error) {
@@ -278,6 +288,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
 
       await this.client.mutate(mutation, {
         id,
+        // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
         input: data as Record<string, unknown>,
       });
     } catch (error) {
@@ -313,6 +324,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
 
       await this.client.mutate(mutation, {
         id,
+        // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
         input: data as Record<string, unknown>,
       });
     } catch (error) {
@@ -398,28 +410,21 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
     const deletes = ops.deletes ?? [];
 
     // 1. Collision detection — thrown unwrapped so consumers can `instanceof`.
-    const collision = detectBulkCollisions({
-      inserts: inserts as Array<{ id?: string; [k: string]: unknown }>,
-      updates: updates as Array<{ id: string; patch: unknown }>,
-      deletes,
-    });
+    const collision = detectBulkCollisions({ inserts, updates, deletes });
     if (collision.where !== null) {
       throw new BulkCollisionError(collision.collisions, collision.where);
     }
 
     // 2. Empty short-circuit — no network call, zeroed result.
     if (inserts.length === 0 && updates.length === 0 && deletes.length === 0) {
-      return { insertedIds: [], updatedIds: [], deletedIds: [] };
+      return { insertedIds: [], updatedIds: [], deletedIds: [], failed: [] };
     }
 
     try {
       // 3. Validate wire body at the boundary.
       const wireBody = v.parse(BulkRequestSchema, {
-        inserts: inserts as Array<Record<string, unknown>>,
-        updates: updates as Array<{
-          id: string;
-          patch: Record<string, unknown>;
-        }>,
+        inserts,
+        updates,
         deletes,
       });
 
@@ -439,7 +444,8 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
       const data = await this.client.mutate<Record<string, unknown>>(mutation, {
         input: wireBody,
       });
-      return v.parse(BulkResponseSchema, data[`bulk${typeName}`]);
+      // The bulk mutation commits in one transaction: no per-row failures
+      return { ...v.parse(BulkResponseSchema, data[`bulk${typeName}`]), failed: [] };
     } catch (error) {
       // Collision is thrown outside try; everything else is transport/server/drift.
       if (error instanceof DoNotDevError) throw error;
@@ -480,6 +486,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
       `;
 
       const data = await this.client.query<Record<string, unknown>>(queryDoc);
+      // why: list items are the caller-asserted `T` (ICrudAdapter); no row schema here
       const result = data[collection] as {
         items?: T[];
         total?: number;

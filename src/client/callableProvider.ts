@@ -44,6 +44,7 @@ export class GraphQLCallableProvider implements ICallableProvider {
         }
       `;
 
+      // why (both casts): CallableProvider's TReq/TRes are caller-asserted; the resolver's JSON has no schema here
       const result = await this.client.mutate<Record<string, unknown>>(
         mutation,
         { input: data as Record<string, unknown> }

@@ -259,7 +259,7 @@ export function createBulkResolver<TRow = unknown>(
       const messages = parsed.issues
         .map((issue) => {
           const path = issue.path
-            ?.map((p) => String((p as { key: unknown }).key))
+            ?.map((p) => String(p.key))
             .join('.');
           return `${path || 'root'}: ${issue.message}`;
         })
@@ -275,8 +275,8 @@ export function createBulkResolver<TRow = unknown>(
     return executeBulk({
       collection: entity.collection,
       ops: parsed.output,
-      createSchema: createSchema as ExecuteBulkParams<TRow>['createSchema'],
-      updateSchema: updateSchema as ExecuteBulkParams<TRow>['updateSchema'],
+      createSchema,
+      updateSchema,
       access,
       uid: ctx.uid,
       userRole: ctx.userRole,

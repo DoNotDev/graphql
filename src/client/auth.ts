@@ -51,7 +51,7 @@ function mapGqlUserToAuthUser(user: GqlUser): AuthUser {
     displayName: user.name ?? undefined,
     photoURL: undefined,
     emailVerified: false,
-    role: 'user' as UserRole,
+    role: 'user',
     customClaims: {},
   };
 }
@@ -191,11 +191,12 @@ export class GraphQLAuth implements AuthProvider {
     metadata?: SignUpMetadata
   ): Promise<AuthUser> {
     try {
-      const householdName = (metadata as Record<string, unknown> | undefined)
-        ?.householdName as string | undefined;
-      const name = (metadata as Record<string, unknown> | undefined)?.name as
-        | string
-        | undefined;
+      const householdName =
+        typeof metadata?.householdName === 'string'
+          ? metadata.householdName
+          : undefined;
+      const name =
+        typeof metadata?.name === 'string' ? metadata.name : undefined;
 
       const data = await this.client.mutate<{ signup: AuthPayload }>(
         `mutation Signup($householdName: String!, $name: String!, $email: String!, $password: String!) {
@@ -255,25 +256,21 @@ export class GraphQLAuth implements AuthProvider {
   async hasRole(role: UserRole): Promise<boolean> {
     const user = await this.getCurrentUser();
     if (!user) return false;
-    const userRole = user.role ?? ('guest' as UserRole);
+    const userRole = user.role ?? 'guest';
     return hasRoleAccess(userRole, role);
   }
 
   async hasFeature(featureId: string): Promise<boolean> {
     const user = await this.getCurrentUser();
     if (!user?.customClaims) return false;
-    const features = (user.customClaims as Record<string, unknown>).features as
-      | string[]
-      | undefined;
+    const features: unknown = user.customClaims.features;
     return Array.isArray(features) && features.includes(featureId);
   }
 
   async hasTier(requiredTier: string): Promise<boolean> {
     const user = await this.getCurrentUser();
     if (!user?.customClaims) return false;
-    const tier = (user.customClaims as Record<string, unknown>).tier as
-      | string
-      | undefined;
+    const tier: unknown = user.customClaims.tier;
     return tier === requiredTier;
   }
 

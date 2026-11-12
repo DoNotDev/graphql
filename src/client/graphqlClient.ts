@@ -95,6 +95,7 @@ export class GraphQLClient {
       );
     }
 
+    // why: `T` is the caller's operation result type; the GraphQL response has no schema here
     const json = (await response.json()) as {
       data?: T;
       errors?: Array<{ message: string }>;
