@@ -57,6 +57,25 @@ export interface CreateBulkResolverOptions<TRow = unknown> {
   createSchema: dndevSchema<TRow>;
   /** Valibot schema validating each update patch (from `createSchemas(entity).update`). */
   updateSchema: dndevSchema<Partial<TRow>>;
+  /**
+   * `createSchemas(entity).draft`: drafts saved incomplete (CRUD rule 5). A draft row sent
+   * without it is rejected (`invalid-argument`).
+   */
+  draftSchema?: ExecuteBulkParams<TRow>['draftCreateSchema'];
+  /**
+   * Reads the stored rows of the updated ids (application field names, keyed by
+   * id), so each patch is validated by its resulting status (patch status ??
+   * stored status) and a published draft is checked whole, as on every other
+   * target. Required when the bulk carries updates: an update without it is
+   * rejected (`internal`). See {@link ExecuteBulkParams.readStored}.
+   *
+   * @example
+   * ```ts
+   * readStored: async (ids) =>
+   *   new Map((await prisma.event.findMany({ where: { id: { in: [...ids] } } })).map((r) => [r.id, r])),
+   * ```
+   */
+  readStored?: ExecuteBulkParams<TRow>['readStored'];
   /** Per-bucket required roles. Typically `entity.access`. */
   access: EntityAccessConfig;
   /**
@@ -181,7 +200,7 @@ export type BulkGraphqlResolver = (
  * import { createBulkResolver, bulkSDL } from '@donotdev/graphql/server';
  * import { createSchemas } from '@donotdev/core/server';
  *
- * const { create, update } = createSchemas(eventEntity);
+ * const { create, update, draft } = createSchemas(eventEntity);
  *
  * const resolvers = {
  *   Mutation: {
@@ -189,6 +208,8 @@ export type BulkGraphqlResolver = (
  *       entity: eventEntity,
  *       createSchema: create,
  *       updateSchema: update,
+ *       draftSchema: draft,
+ *       readStored: prismaReadEvents,
  *       access: eventEntity.access,
  *       transact: prismaTransact,
  *     }),
@@ -242,6 +263,8 @@ export function createBulkResolver<TRow = unknown>(
     entity,
     createSchema,
     updateSchema,
+    draftSchema,
+    readStored,
     access,
     transact,
     mintInsertId,
@@ -277,6 +300,8 @@ export function createBulkResolver<TRow = unknown>(
       ops: parsed.output,
       createSchema,
       updateSchema,
+      draftCreateSchema: draftSchema,
+      readStored,
       access,
       uid: ctx.uid,
       userRole: ctx.userRole,

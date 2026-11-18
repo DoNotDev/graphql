@@ -20,7 +20,7 @@ import * as v from 'valibot';
 import {
   BulkCollisionError,
   BulkRequestSchema,
-  BulkResponseSchema,
+  validateBulkOutcome,
   CRUD_OPERATORS,
   DoNotDevError,
   detectBulkCollisions,
@@ -272,7 +272,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
     data: T,
     _schema?: dndevSchema<T>,
     options?: CrudOperationOptions
-  ): Promise<void> {
+  ): Promise<Record<string, unknown>> {
     if (options?.signal?.aborted) {
       throw new Error('Operation cancelled');
     }
@@ -286,11 +286,11 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
         }
       `;
 
-      await this.client.mutate(mutation, {
-        id,
-        // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
-        input: data as Record<string, unknown>,
-      });
+      // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
+      const input = data as Record<string, unknown>;
+      await this.client.mutate(mutation, { id, input });
+      // The generic JSON mutation selects only `id`: the input is what was stored.
+      return { ...input, id };
     } catch (error) {
       if (error instanceof DoNotDevError) throw error;
       throw wrapCrudError(
@@ -308,7 +308,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
     id: string,
     data: Partial<T>,
     options?: CrudOperationOptions
-  ): Promise<void> {
+  ): Promise<Record<string, unknown>> {
     if (options?.signal?.aborted) {
       throw new Error('Operation cancelled');
     }
@@ -322,11 +322,11 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
         }
       `;
 
-      await this.client.mutate(mutation, {
-        id,
-        // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
-        input: data as Record<string, unknown>,
-      });
+      // why: `T` is unconstrained (ICrudAdapter); entity input is a JSON object by contract
+      const input = data as Record<string, unknown>;
+      await this.client.mutate(mutation, { id, input });
+      // The generic JSON mutation selects only `id`: the patch is what was stored.
+      return { ...input, id };
     } catch (error) {
       if (error instanceof DoNotDevError) throw error;
       throw wrapCrudError(
@@ -385,7 +385,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
    *      network call. Re-thrown unwrapped so callers can `instanceof` it.
    *   3. Empty bulk short-circuits to a zeroed result with no GraphQL call.
    *   4. Input order preserved per bucket in the returned ids.
-   *   5. Response validated against {@link BulkResponseSchema} — drift fails loud.
+   *   5. Response validated against {@link validateBulkOutcome} — drift fails loud.
    *
    * @example
    * const result = await adapter.bulk('events', {
@@ -428,7 +428,11 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
         deletes,
       });
 
-      // 4. Build mutation — same capitalize() helper as add/update/delete.
+      // 4. Keep the legacy atomic selection: bulkSDL does not expose failed.
+      // GraphQL projects only selected fields: partial failures cannot reach this
+      // client over a compliant server response. Incomplete acknowledgements
+      // fail as unknown. Selecting failed requires a deployed server schema and
+      // a negotiated client capability; neither is provided by this protocol.
       const typeName = capitalize(collection);
       const mutation = `
         mutation Bulk${typeName}($input: ${typeName}BulkInput!) {
@@ -444,8 +448,7 @@ export class GraphQLCrudAdapter implements ICrudAdapter {
       const data = await this.client.mutate<Record<string, unknown>>(mutation, {
         input: wireBody,
       });
-      // The bulk mutation commits in one transaction: no per-row failures
-      return { ...v.parse(BulkResponseSchema, data[`bulk${typeName}`]), failed: [] };
+      return validateBulkOutcome(wireBody, data[`bulk${typeName}`]);
     } catch (error) {
       // Collision is thrown outside try; everything else is transport/server/drift.
       if (error instanceof DoNotDevError) throw error;

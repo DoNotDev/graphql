@@ -43,7 +43,12 @@ emitted by `GraphQLCrudAdapter.bulk()`.
 
 All storage is caller-owned — the factory never imports an ORM. You supply
 a `transact` callback that MUST run the three buckets inside one database
-transaction and return the ids per bucket in input order.
+transaction and return the ids per bucket in input order, and a `readStored`
+callback returning the stored rows of the updated ids (keyed by id): the
+stored status decides each patch's schema (a stored draft is draft-validated,
+a published draft is checked whole). A bulk with updates and no `readStored`
+is rejected. Pass `draftSchema` (`createSchemas(entity).draft`) to accept
+draft rows.
 
 ### SDL fragment
 
@@ -97,9 +102,9 @@ import { createBulkResolver, bulkSDL } from '@donotdev/graphql/server';
 import { createSchemas } from '@donotdev/core/server';
 
 import { eventEntity } from './entities/event.js';
-import { prismaTransact } from './db/prismaBulk.js';
+import { prismaReadEvents, prismaTransact } from './db/prismaBulk.js';
 
-const { create, update } = createSchemas(eventEntity);
+const { create, update, draft } = createSchemas(eventEntity);
 
 const typeDefs = [
   `scalar JSON`,
@@ -113,6 +118,8 @@ const resolvers = {
       entity: eventEntity,
       createSchema: create,
       updateSchema: update,
+      draftSchema: draft,
+      readStored: prismaReadEvents,
       access: eventEntity.access,
       transact: prismaTransact,
     }),

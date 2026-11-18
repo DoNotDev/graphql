@@ -151,14 +151,14 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
 
   // ---- set ----
 
-  it('set() resolves without error', async () => {
+  it('set() resolves with the stored values (the input: the mutation selects only id)', async () => {
     const c = createMockClient({
       mutateResult: { upsertUsers: { id: 'u1' } },
     });
     const ad = new GraphQLCrudAdapter(c);
     await expect(
       ad.set<{ name: string }>('users', 'u1', { name: 'Alice' })
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ name: 'Alice', id: 'u1' });
     expect(c.mutate).toHaveBeenCalled();
   });
 
@@ -174,14 +174,14 @@ describe('GraphQLCrudAdapter — ICrudAdapter contract', () => {
 
   // ---- update ----
 
-  it('update() resolves without error', async () => {
+  it('update() resolves with the stored values (the patch: the mutation selects only id)', async () => {
     const c = createMockClient({
       mutateResult: { updateUsers: { id: 'u1' } },
     });
     const ad = new GraphQLCrudAdapter(c);
     await expect(
       ad.update<{ name: string }>('users', 'u1', { name: 'Updated' })
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ name: 'Updated', id: 'u1' });
     expect(c.mutate).toHaveBeenCalled();
   });
 
